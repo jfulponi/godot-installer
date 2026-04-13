@@ -1,0 +1,158 @@
+name: Check Godot Releases
+
+on:
+  schedule:
+    # Check every 6 hours
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Check for new Godot releases
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PYEOF'
+          import json
+          import os
+          import re
+          import requests
+
+          GODOT_REPO = "godotengine/godot"
+          STATE_FILE = ".github/last-godot-release.json"
+
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+          }
+
+          # Get latest Godot release
+          resp = requests.get(
+              f"https://api.github.com/repos/{GODOT_REPO}/releases/latest",
+              headers=headers,
+          )
+          resp.raise_for_status()
+          latest = resp.json()
+          latest_tag = latest["tag_name"]
+
+          # Also check pre-releases
+          resp2 = requests.get(
+              f"https://api.github.com/repos/{GODOT_REPO}/releases",
+              headers=headers,
+              params={"per_page": 5},
+          )
+          resp2.raise_for_status()
+          all_releases = resp2.json()
+
+          newest_prerelease = None
+          for rel in all_releases:
+              if rel["prerelease"]:
+                  newest_prerelease = rel["tag_name"]
+                  break
+
+          # Load previous state
+          state = {}
+          if os.path.exists(STATE_FILE):
+              with open(STATE_FILE) as f:
+                  state = json.load(f)
+
+          prev_stable = state.get("latest_stable", "")
+          prev_prerelease = state.get("latest_prerelease", "")
+
+          new_stable = latest_tag != prev_stable
+          new_prerelease = newest_prerelease and newest_prerelease != prev_prerelease
+
+          # Save new state
+          state["latest_stable"] = latest_tag
+          if newest_prerelease:
+              state["latest_prerelease"] = newest_prerelease
+
+          os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+          with open(STATE_FILE, "w") as f:
+              json.dump(state, f, indent=2)
+
+          # Set outputs
+          with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+              gh.write(f"new_stable={'true' if new_stable else 'false'}\n")
+              gh.write(f"stable_tag={latest_tag}\n")
+              gh.write(f"new_prerelease={'true' if new_prerelease else 'false'}\n")
+              gh.write(f"prerelease_tag={newest_prerelease or ''}\n")
+
+          if new_stable:
+              print(f"New stable release detected: {latest_tag}")
+          if new_prerelease:
+              print(f"New pre-release detected: {newest_prerelease}")
+          if not new_stable and not new_prerelease:
+              print("No new releases detected.")
+          PYEOF
+
+      - name: Commit state update
+        if: steps.check.outputs.new_stable == 'true' || steps.check.outputs.new_prerelease == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/last-godot-release.json
+          git commit -m "chore: update Godot release tracker (${{ steps.check.outputs.stable_tag }})" || true
+          git push || true
+
+      - name: Trigger build for new stable release
+        if: steps.check.outputs.new_stable == 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: new-godot-release
+          client-payload: |
+            {
+              "godot_version": "${{ steps.check.outputs.stable_tag }}",
+              "type": "stable"
+            }
+
+      - name: Create issue for new release
+        if: steps.check.outputs.new_stable == 'true'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "New Godot stable release: ${{ steps.check.outputs.stable_tag }}"
+          content-filepath: /dev/null
+          labels: automated,new-godot-release
+        continue-on-error: true
+
+      - name: Create notification issue
+        if: steps.check.outputs.new_stable == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "🎮 New Godot release: ${{ steps.check.outputs.stable_tag }}" \
+            --body "A new Godot stable release has been detected: **${{ steps.check.outputs.stable_tag }}**
+
+          The build workflow will automatically create new installers.
+
+          - [Godot Release](https://github.com/godotengine/godot/releases/tag/${{ steps.check.outputs.stable_tag }})
+          " \
+            --label "automated,new-godot-release" || true
+
+  auto-build:
+    needs: check
+    if: needs.check.outputs.new_stable == 'true'
+    uses: ./.github/workflows/build-for-godot-release.yml
+    with:
+      godot_version: ${{ needs.check.outputs.stable_tag }}
+    secrets: inherit

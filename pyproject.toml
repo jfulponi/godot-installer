@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "godot-installer"
+version = "1.0.0"
+description = "Download, manage, and install multiple Godot Engine versions with desktop integration"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["godot", "gamedev", "version-manager", "installer"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Build Tools",
+]
+dependencies = [
+    "requests>=2.31.0",
+    "rich>=13.0.0",
+    "platformdirs>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pyinstaller>=6.0.0", "pytest>=7.0.0"]
+windows = ["pywin32>=306; sys_platform == 'win32'"]
+
+[project.scripts]
+godot-installer = "godot_installer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
