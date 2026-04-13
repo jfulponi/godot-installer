@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Godot Installer GUI",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "godot_installer.app"],
+      "port": 0
+    }
+  ]
+}

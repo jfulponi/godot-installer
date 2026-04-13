@@ -120,10 +120,15 @@ def fetch_releases(
     session = _get_session(github_token)
     releases: list[GodotRelease] = []
 
-    # Fetch from both repos (official + builds)
-    for repo in [GODOT_REPO, GODOT_BUILDS_REPO]:
+    # godot-builds has both stable + pre-release; main repo only stable
+    # Fetch from builds repo first (has everything), then fill from main
+    repos = [GODOT_BUILDS_REPO, GODOT_REPO]
+
+    for repo in repos:
         page = 1
-        while len(releases) < limit:
+        fetched_from_repo = 0
+        max_per_repo = 60
+        while fetched_from_repo < max_per_repo:
             url = f"{GITHUB_API}/repos/{repo}/releases"
             resp = session.get(url, params={"per_page": 30, "page": page})
             if resp.status_code != 200:
@@ -136,7 +141,7 @@ def fetch_releases(
                 if not tag:
                     continue
                 is_pre = rel.get("prerelease", False)
-                if not include_prerelease and is_pre and not _is_stable(tag):
+                if not include_prerelease and is_pre:
                     continue
                 assets = [
                     {"name": a["name"], "url": a["browser_download_url"], "size": a["size"]}
@@ -144,11 +149,12 @@ def fetch_releases(
                 ]
                 if assets:
                     releases.append(GodotRelease(tag, assets, is_pre))
+                    fetched_from_repo += 1
             page += 1
             if len(data) < 30:
                 break
 
-    # Deduplicate by tag and sort
+    # Deduplicate by tag, preferring first occurrence (godot-builds)
     seen = set()
     unique = []
     for r in releases:

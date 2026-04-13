@@ -22,15 +22,12 @@ jobs:
           - os: windows-latest
             name: windows
             artifact: godot-installer-windows.exe
-            pyinstaller_args: --icon=assets/icon.ico
           - os: ubuntu-latest
             name: linux
             artifact: godot-installer-linux
-            pyinstaller_args: ""
           - os: macos-latest
             name: macos
             artifact: godot-installer-macos
-            pyinstaller_args: --icon=assets/icon.icns
 
     runs-on: ${{ matrix.os }}
     name: Build (${{ matrix.name }})
@@ -41,6 +38,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install system dependencies (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
 
       - name: Install dependencies
         run: |
@@ -56,16 +59,23 @@ jobs:
         run: |
           pyinstaller \
             --onefile \
+            --windowed \
             --name godot-installer \
             --add-data "src/godot_installer:godot_installer" \
-            ${{ matrix.pyinstaller_args }} \
             --hidden-import=godot_installer \
-            --hidden-import=godot_installer.cli \
+            --hidden-import=godot_installer.app \
             --hidden-import=godot_installer.versions \
             --hidden-import=godot_installer.shortcuts \
             --hidden-import=godot_installer.paths \
             --hidden-import=godot_installer.config \
-            src/godot_installer/cli.py
+            --hidden-import=godot_installer.tabs \
+            --hidden-import=godot_installer.tabs.install_tab \
+            --hidden-import=godot_installer.tabs.installed_tab \
+            --hidden-import=godot_installer.tabs.settings_tab \
+            --hidden-import=customtkinter \
+            --hidden-import=PIL \
+            --collect-all customtkinter \
+            src/godot_installer/app.py
         shell: bash
 
       - name: Rename artifact (Linux/macOS)

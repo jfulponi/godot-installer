@@ -1,21 +1,27 @@
 # Godot Installer
 
-Cross-platform Godot Engine version manager and installer. Download, install, and manage multiple Godot versions with native desktop integration (shortcuts, start menu entries).
+A graphical Godot Engine version manager. Download, install, and manage multiple Godot versions with one click — complete with desktop shortcuts, Start Menu entries, and app launcher integration.
+
+![Python](https://img.shields.io/badge/python-3.9+-blue)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-green)
+![License](https://img.shields.io/badge/license-MIT-orange)
 
 ## Features
 
-- **Download & install** any Godot version (stable or pre-release) from GitHub
-- **Desktop shortcuts** — Windows (.lnk + Start Menu), Linux (.desktop), macOS (symlink + /Applications)
-- **Version management** — install multiple versions, switch between them, set a default
-- **Mono/.NET support** — install standard or Mono builds
-- **Cross-platform** — Windows, Linux, macOS
-- **Auto-release detection** — GitHub Actions workflow checks for new Godot releases every 6 hours and builds new installers automatically
+- **One-click install** — Browse all available Godot versions and install with a single button
+- **Desktop shortcuts** — Automatically creates:
+  - Windows: Desktop `.lnk` + Start Menu entry
+  - Linux: `.desktop` file + app launcher integration
+  - macOS: Desktop symlink + `/Applications` link
+- **Version management** — Install multiple versions side by side, set a default, launch any version
+- **Mono / .NET support** — Toggle to download Mono builds
+- **Download progress** — Real-time progress bar with speed and size info
+- **Dark/Light theme** — Switch between dark, light, or system theme
+- **Auto-release detection** — CI/CD watches for new Godot releases and builds fresh installers
 
-## Installation
+## Download
 
-### Download a pre-built binary
-
-Go to [Releases](../../releases) and download the binary for your platform:
+Go to [Releases](../../releases) and grab the binary for your OS:
 
 | Platform | File |
 |----------|------|
@@ -23,119 +29,81 @@ Go to [Releases](../../releases) and download the binary for your platform:
 | Linux    | `godot-installer-linux` |
 | macOS    | `godot-installer-macos` |
 
-### Install from source
-
-```bash
-pip install -e .
-```
+Double-click to run — no installation needed.
 
 ## Usage
 
-```bash
-# Install the latest stable Godot
-godot-installer install latest
+### Install tab
+Browse all available Godot versions. Search by version number, toggle pre-releases or Mono builds, and click **Install** on any version. A progress bar shows the download status, and a desktop shortcut is created automatically.
 
-# List available versions
-godot-installer list
-godot-installer list --all          # include pre-releases
+### Installed tab
+See all your installed versions at a glance. From here you can:
+- **Launch** any version with one click
+- **Set Default** version
+- **Create/remove shortcuts**
+- **Remove** versions you no longer need
+- **Open** the versions folder in your file manager
 
-# Install a specific version
-godot-installer install 4.4
-godot-installer install 4.3 --mono  # Mono/.NET build
+### Settings tab
+- **GitHub Token** — Set a personal access token to avoid API rate limits
+- **Preferences** — Auto-shortcut, default to Mono, show pre-releases
+- **Theme** — Dark, Light, or System
+- **Clear cache** — Remove downloaded ZIP files
 
-# List installed versions
-godot-installer list --installed
-
-# Launch Godot
-godot-installer run              # runs default version
-godot-installer run 4.4          # runs specific version
-
-# Set default version
-godot-installer use 4.4
-
-# Manage shortcuts
-godot-installer shortcut create 4.4
-godot-installer shortcut remove 4.4
-
-# Remove a version
-godot-installer remove 4.3
-
-# Configuration
-godot-installer config                          # show all
-godot-installer config github_token ghp_xxx     # set GitHub token (for higher API limits)
-godot-installer config mono true                # default to Mono builds
-```
-
-## Desktop Integration
-
-When you install a Godot version, the installer automatically:
-
-- **Windows**: Creates a `.lnk` shortcut on the Desktop and in Start Menu → Programs → Godot Engine
-- **Linux**: Creates a `.desktop` file on the Desktop and in `~/.local/share/applications/` (shows in app launcher)
-- **macOS**: Creates a symlink on the Desktop and in `/Applications`
-
-Use `--no-shortcut` to skip shortcut creation.
-
-## GitHub Token
-
-To avoid GitHub API rate limits (60 req/hour unauthenticated), set a personal access token:
+## Run from Source
 
 ```bash
-godot-installer config github_token ghp_your_token_here
-# or
-export GITHUB_TOKEN=ghp_your_token_here
+git clone https://github.com/YOUR_USER/godot-installer.git
+cd godot-installer
+pip install -e .
+python -m godot_installer.app
 ```
 
-No special scopes are needed — a fine-grained token with public repo read access is sufficient.
-
-## Building from Source
-
-### Build a standalone executable
+## Build a Standalone Executable
 
 ```bash
 pip install pyinstaller
 pip install -e ".[dev]"
 
-pyinstaller --onefile --name godot-installer \
+pyinstaller --onefile --windowed --name godot-installer \
   --add-data "src/godot_installer:godot_installer" \
   --hidden-import=godot_installer \
-  --hidden-import=godot_installer.cli \
-  --hidden-import=godot_installer.versions \
-  --hidden-import=godot_installer.shortcuts \
-  --hidden-import=godot_installer.paths \
-  --hidden-import=godot_installer.config \
-  src/godot_installer/cli.py
+  --hidden-import=godot_installer.app \
+  --hidden-import=godot_installer.tabs.install_tab \
+  --hidden-import=godot_installer.tabs.installed_tab \
+  --hidden-import=godot_installer.tabs.settings_tab \
+  --hidden-import=customtkinter \
+  --collect-all customtkinter \
+  src/godot_installer/app.py
 ```
 
-The executable will be in `dist/`.
+Output: `dist/godot-installer` (or `.exe` on Windows).
 
-### CI/CD
+## CI/CD
 
-The project includes GitHub Actions workflows:
+Three GitHub Actions workflows are included:
 
-- **`build.yml`** — Builds executables for Windows, Linux, macOS on tag push. Creates a GitHub release with all binaries.
-- **`check-godot-releases.yml`** — Runs every 6 hours, detects new Godot releases, and triggers automatic builds.
-- **`build-for-godot-release.yml`** — Builds version-specific installers when a new Godot release is detected.
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `build.yml` | Tag push (`v*`) or manual | Builds for Win/Linux/Mac, creates GitHub release |
+| `check-godot-releases.yml` | Every 6 hours (cron) | Detects new Godot stable/pre-release versions |
+| `build-for-godot-release.yml` | Auto (from check) or manual | Builds version-specific installers as release assets |
 
-#### Creating a release
+### Quick release
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
-# GitHub Actions will build and create the release automatically
 ```
 
-#### Manual trigger
+GitHub Actions will build all 3 platform binaries and attach them to a new release.
 
-You can also trigger builds manually from the Actions tab in GitHub.
+### Auto-detection
 
-## Data Locations
-
-| | Windows | Linux | macOS |
-|---|---|---|---|
-| Versions | `%LOCALAPPDATA%/GodotInstaller/versions` | `~/.local/share/GodotInstaller/versions` | `~/Library/Application Support/GodotInstaller/versions` |
-| Cache | `%LOCALAPPDATA%/GodotInstaller/Cache` | `~/.cache/GodotInstaller` | `~/Library/Caches/GodotInstaller` |
-| Config | `%LOCALAPPDATA%/GodotInstaller/config.json` | `~/.config/GodotInstaller/config.json` | `~/Library/Application Support/GodotInstaller/config.json` |
+The `check-godot-releases.yml` cron job checks the Godot GitHub repo every 6 hours. When a new stable version is detected, it:
+1. Opens an issue notifying about the new release
+2. Triggers `build-for-godot-release.yml` which builds new installers
+3. Creates a tagged release with the platform binaries as assets
 
 ## License
 
