@@ -15,7 +15,7 @@ from .paths import get_desktop_dir, get_applications_dir
 def create_shortcut(
     executable: Path,
     name: str = "Godot Engine",
-    icon_path: Optional[Path] = 'https://github.com/jfulponi/godot-installer/raw/refs/heads/master/assets/Godot_icon.ico',
+    icon_path = 'https://github.com/jfulponi/godot-installer/raw/refs/heads/master/assets/Godot_icon.ico',
     desktop: bool = True,
     menu: bool = True,
 ) -> list[Path]:
